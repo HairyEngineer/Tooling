@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Heiz- & Kühllast Rechner · Prototyp</title>
+  <meta name="description" content="Vereinfachter, erweiterbarer Prototyp für Heiz- und Kühllast. Läuft als PWA, auch offline.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b0f15">
+  <style>
+    :root { --bg:#0b0f15; --card:#121826; --muted:#6b7280; --text:#e5e7eb; --accent:#62d3f5; --br:18px; }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:radial-gradient(1200px 800px at 70% -10%,#132135,#0b0f15); color:var(--text)}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .brand h1{font-size:18px;margin:0;letter-spacing:.3px}
+    .chip{font-size:12px;color:#0b0f15;background:var(--accent);padding:4px 8px;border-radius:999px;font-weight:600}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.06);border-radius:var(--br);padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .grid{display:grid;gap:16px}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    @media(max-width:860px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    input,select{width:100%;background:#0e1524;color:var(--text);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;outline:none}
+    input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(98,211,245,.15)}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    button{cursor:pointer;background:#1a263b;color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px}
+    button.primary{background:linear-gradient(135deg,#2bb7ec,#5fe1b8);color:#06202b;font-weight:700;border:none}
+    .tabbar{display:flex;gap:8px;background:#0e1524;padding:6px;border-radius:14px;border:1px solid rgba(255,255,255,.06)}
+    .tab{flex:1;text-align:center;padding:10px 12px;border-radius:10px;color:var(--muted);font-weight:600}
+    .tab.active{background:#152033;color:var(--text)}
+    .muted{color:var(--muted);font-size:12px}
+    .kpi{display:flex;flex-direction:column;gap:6px;background:#0e1524;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px}
+    .kpi .value{font-size:22px;font-weight:800}
+    .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px dashed rgba(255,255,255,.08);padding:8px 6px;text-align:right}
+    th:first-child,td:first-child{text-align:left}
+    .pill{padding:2px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.1);font-size:11px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.77 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" stroke="#62d3f5"/></svg>
+        <h1>Heiz‑ & Kühllast · DIN‑orientierter Prototyp</h1>
+        <span class="chip">v0.2 PWA</span>
+      </div>
+      <div class="tabbar" role="tablist">
+        <button class="tab active" data-tab="heating">Heizlast</button>
+        <button class="tab" data-tab="cooling">Kühllast</button>
+        <button class="tab" data-tab="about">Info</button>
+      </div>
+    </header>
+
+    <section class="grid cols-2">
+      <div class="card">
+        <h3>Projektparameter</h3>
+        <div class="grid cols-2">
+          <div><label>Projektname</label><input id="projectName" placeholder="z.B. EFH Musterstraße" /></div>
+          <div><label>Norm-/Auslegungsort</label><select id="city"></select></div>
+          <div><label>Innen‑Soll Heizen [°C]</label><input type="number" id="tInHeat" value="20" /></div>
+          <div><label>Innen‑Soll Kühlen [°C]</label><input type="number" id="tInCool" value="26" /></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Gebäudedaten (global)</h3>
+        <div class="grid cols-3">
+          <div><label>Luftwechsel n (Heizen) [1/h]</label><input type="number" step="0.1" id="nHeat" value="0.5" /></div>
+          <div><label>Luftwechsel n (Kühlen) [1/h]</label><input type="number" step="0.1" id="nCool" value="1.0" /></div>
+          <div><label>Raumhöhe [m]</label><input type="number" step="0.1" id="hRoom" value="2.6" /></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button class="primary" id="addRoom">+ Raum hinzufügen</button>
+          <span class="muted">Räume anlegen, Hüllflächen & U‑Werte eingeben.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="roomsSection" style="margin-top:16px;">
+      <h3>Räume</h3>
+      <div id="rooms"></div>
+    </section>
+
+    <section class="grid cols-3" style="margin-top:16px;">
+      <div class="kpi"><div class="muted">Summe Heizlast</div><div class="value mono" id="kpiHeat">0 W</div><div class="muted">ΔT = <span id="deltaTHeat">—</span> K</div></div>
+      <div class="kpi"><div class="muted">Summe Kühllast (sensibel)</div><div class="value mono" id="kpiCool">0 W</div><div class="muted">ohne Feuchte</div></div>
+      <div class="kpi"><div class="muted">Räume</div><div class="value mono" id="kpiRooms">0</div><div class="muted">im Projekt</div></div>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <h3>Ergebnisse</h3>
+      <div class="muted" style="margin-bottom:8px;">Pro Raum (Heizlast & sensible Kühllast). Vereinfachte, DIN‑orientierte Formeln.</div>
+      <div id="resultsWrap"></div>
+    </section>
+
+    <section class="card" data-tabpanel="about" style="display:none; margin-top:16px;">
+      <h3>Hinweise</h3>
+      <ul>
+        <li><strong>Heizlast</strong>: Transmission + Lüftung nach DIN‑Logik (EN 12831‑1 orientiert), Gewinne = 0 (konservativ).</li>
+        <li><strong>Kühllast</strong>: sensible Last (Interne + Solar + Lüftung), <em>ohne</em> Feuchte/Dynamik (nicht VDI 2078‑konform).</li>
+        <li>Ziel: belastbare Vordimensionierung, später erweiterbar (ψ‑Werte, Ausrichtungen, Feuchte, Export).</li>
+      </ul>
+    </section>
+  </div>
+
+  <template id="roomTpl">
+    <div class="card" data-room>
+      <div class="row" style="justify-content:space-between;">
+        <div class="row" style="gap:8px;">
+          <strong>Raum: </strong>
+          <input data-name placeholder="z.B. Wohnen" style="width:220px;" />
+          <span class="pill">Nr. <span data-idx></span></span>
+        </div>
+        <div class="row"><button data-dup>Duplizieren</button><button data-del>Entfernen</button></div>
+      </div>
+      <div class="grid cols-3" style="margin-top:10px;">
+        <div><label>Grundfläche A [m²]</label><input type="number" step="0.1" data-area value="20" /></div>
+        <div><label>Raumhöhe [m]</label><input type="number" step="0.1" data-height placeholder="leer = global" /></div>
+        <div><label>Innen‑Soll Heizen [°C] (override)</label><input type="number" step="0.5" data-tinheat /></div>
+      </div>
+
+      <details open style="margin-top:8px;">
+        <summary><strong>Hüllflächen & U‑Werte</strong> <span class="muted">(Σ A·U·ΔT)</span></summary>
+        <div class="grid cols-3" style="margin-top:8px;">
+          <div><label>Außenwand A<sub>ew</sub> [m²] · U<sub>ew</sub> [W/m²K]</label><div class="row"><input type="number" step="0.1" data-Aew value="15" /><input type="number" step="0.01" data-Uew value="0.30" /></div></div>
+          <div><label>Fenster A<sub>w</sub> [m²] · U<sub>w</sub> [W/m²K] · g<sub>tot</sub></label><div class="row"><input type="number" step="0.1" data-Aw value="4" /><input type="number" step="0.01" data-Uw value="1.20" /><input type="number" step="0.05" data-gw value="0.5" /></div></div>
+          <div><label>Dach/Decke A<sub>d</sub> [m²] · U<sub>d</sub> [W/m²K]</label><div class="row"><input type="number" step="0.1" data-Ad value="10" /><input type="number" step="0.01" data-Ud value="0.20" /></div></div>
+          <div><label>Boden/gegen Erdreich A<sub>f</sub> [m²] · U<sub>f</sub> [W/m²K]</label><div class="row"><input type="number" step="0.1" data-Af value="10" /><input type="number" step="0.01" data-Uf value="0.30" /></div></div>
+          <div><label>Innenwand gegen unbeheizt A<sub>iu</sub> [m²] · U<sub>iu</sub> [W/m²K]</label><div class="row"><input type="number" step="0.1" data-Aiu value="0" /><input type="number" step="0.01" data-Uiu value="0.50" /></div></div>
+          <div><label>Wärmebrücken ψΣ·L [W/K] (optional)</label><input type="number" step="0.1" data-psi value="0" /></div>
+        </div>
+      </details>
+
+      <details style="margin-top:8px;">
+        <summary><strong>Lüftung / Infiltration</strong> <span class="muted">(Φ = 0,34 · V̇ · ΔT)</span></summary>
+        <div class="grid cols-3" style="margin-top:8px;">
+          <div><label>Zus. Luftwechsel n<sub>room</sub> [1/h]</label><input type="number" step="0.1" data-nroom /></div>
+          <div><label>Mechanische Zuluft [m³/h]</label><input type="number" step="1" data-supply /></div>
+          <div><label>WRG‑Wirkungsgrad η<sub>WRG</sub> [%]</label><input type="number" step="1" data-wrg value="0" /></div>
+        </div>
+      </details>
+
+      <details style="margin-top:8px;">
+        <summary><strong>Interne & solare Gewinne (Kühllast)</strong></summary>
+        <div class="grid cols-3" style="margin-top:8px;">
+          <div><label>Personenlast [W] (sensibel)</label><input type="number" step="10" data-qpeople value="0" /></div>
+          <div><label>Geräte/Beleuchtung [W]</label><input type="number" step="10" data-qint value="150" /></div>
+          <div><label>Solare Gewinne [W/m² Fenster]</label><input type="number" step="10" data-qsolar value="200" /></div>
+        </div>
+      </details>
+
+      <div class="grid cols-3" style="margin-top:8px;">
+        <div class="kpi"><div class="muted">Heizlast Raum</div><div class="value mono" data-phiheat>—</div><div class="muted">W</div></div>
+        <div class="kpi"><div class="muted">Kühllast Raum</div><div class="value mono" data-phicool>—</div><div class="muted">W (sensibel)</div></div>
+        <div class="kpi"><div class="muted">Volumen</div><div class="value mono" data-vol>—</div><div class="muted">m³</div></div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // Service Worker registrieren (für Offline)
+    if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js')); }
+
+    // Klimadaten (vereinfachte Auszüge)
+    const CLIMATE = [
+      { city: "Berlin", t_out_heat: -12, t_out_cool: 32 },
+      { city: "Hamburg", t_out_heat: -10, t_out_cool: 30 },
+      { city: "München", t_out_heat: -14, t_out_cool: 31 },
+      { city: "Köln", t_out_heat: -10, t_out_cool: 32 },
+      { city: "Frankfurt", t_out_heat: -12, t_out_cool: 33 },
+      { city: "Leipzig", t_out_heat: -12, t_out_cool: 32 },
+      { city: "Stuttgart", t_out_heat: -12, t_out_cool: 32 }
+    ];
+
+    const state = { tab: 'heating', rooms: [] };
+    const $ = (s, c=document) => c.querySelector(s);
+    const $$ = (s, c=document) => Array.from(c.querySelectorAll(s));
+
+    const citySel = $('#city');
+    CLIMATE.forEach(c => { const o = document.createElement('option'); o.value = JSON.stringify(c); o.textContent = `${c.city} (Heiz ${c.t_out_heat}°C / Kühl ${c.t_out_cool}°C)`; citySel.appendChild(o); });
+    citySel.selectedIndex = 0;
+
+    $$('.tab').forEach(btn => btn.addEventListener('click', () => {
+      $$('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+      state.tab = btn.dataset.tab;
+      $('[data-tabpanel="about"]').style.display = state.tab==='about' ? '' : 'none';
+      update();
+    }));
+
+    const roomsWrap = $('#rooms');
+    const roomTpl = $('#roomTpl');
+
+    function addRoom(copyOf=null){
+      const node = roomTpl.content.firstElementChild.cloneNode(true);
+      const idx = state.rooms.length + 1;
+      $('[data-idx]', node).textContent = idx;
+      roomsWrap.appendChild(node);
+
+      const room = {
+        name:'', area:20, height:null, tInHeat:null,
+        Aew:15, Uew:0.3, Aw:4, Uw:1.2, gW:0.5, Ad:10, Ud:0.2, Af:10, Uf:0.3, Aiu:0, Uiu:0.5, psi:0,
+        nRoom:null, supply:null, wrg:0, qPeople:0, qInt:150, qSolar:200
+      };
+      if(copyOf) Object.assign(room, copyOf);
+      state.rooms.push(room);
+      bindRoom(node, room);
+      update();
+    }
+
+    function bindRoom(node, room){
+      const map = [
+        ['data-name','name'],['data-area','area'],['data-height','height'],['data-tinheat','tInHeat'],
+        ['data-Aew','Aew'],['data-Uew','Uew'],['data-Aw','Aw'],['data-Uw','Uw'],['data-gw','gW'],
+        ['data-Ad','Ad'],['data-Ud','Ud'],['data-Af','Af'],['data-Uf','Uf'],['data-Aiu','Aiu'],['data-Uiu','Uiu'],['data-psi','psi'],
+        ['data-nroom','nRoom'],['data-supply','supply'],['data-wrg','wrg'],
+        ['data-qpeople','qPeople'],['data-qint','qInt'],['data-qsolar','qSolar']
+      ];
+      map.forEach(([attr,key])=>{
+        const input = node.querySelector(`[${attr}]`);
+        if(input) input.value = room[key] ?? '';
+        input.addEventListener('input', () => {
+          const v = input.value === '' ? null : Number(input.value);
+          room[key] = (attr==='data-name') ? input.value : v;
+          debounceUpdate();
+        });
+      });
+      node.querySelector('[data-del]').addEventListener('click', () => { state.rooms = state.rooms.filter(r=>r!==room); node.remove(); update(); });
+      node.querySelector('[data-dup]').addEventListener('click', () => addRoom(room));
+    }
+
+    document.getElementById('addRoom').addEventListener('click', () => addRoom());
+
+    function heatDeltaT(){ const tIn = Number($('#tInHeat').value); const {t_out_heat} = JSON.parse($('#city').value); return tIn - t_out_heat; }
+    function coolDeltaT(){ const tIn = Number($('#tInCool').value); const {t_out_cool} = JSON.parse($('#city').value); return t_out_cool - tIn; }
+    function roomVolume(room){ const h = Number(room.height ?? $('#hRoom').value); return room.area * h; }
+
+    function phiTransmission(room, dT){
+      const sumAU = room.Aew*room.Uew + room.Aw*room.Uw + room.Ad*room.Ud + room.Af*room.Uf + room.Aiu*room.Uiu;
+      return (sumAU * dT) + (room.psi * dT);
+    }
+    function phiVentilation(room, dT, mode='heat'){
+      const V = roomVolume(room);
+      const nGlobal = Number(mode==='heat' ? $('#nHeat').value : $('#nCool').value);
+      const nRoom = Number(room.nRoom ?? 0);
+      const supply = Number(room.supply ?? 0);
+      const nTot = nGlobal + (isNaN(nRoom)?0:nRoom);
+      const Vdot = (nTot * V) + (isNaN(supply)?0:supply);
+      const etaWRG = Math.max(0, Math.min(90, Number(room.wrg||0)))/100;
+      const effDT = dT * (1 - (mode==='heat' ? etaWRG : 0)); // beim Kühlen konservativ: keine WRG
+      return 0.34 * Vdot * Math.max(0, effDT);
+    }
+    function phiCoolingSensible(room){
+      const dT = coolDeltaT();
+      const phiVent = phiVentilation(room, dT, 'cool');
+      const phiSolar = room.Aw * Number(room.qSolar||0) * Number(room.gW||0.5);
+      const phiInt = Number(room.qPeople||0) + Number(room.qInt||0);
+      return Math.max(0, phiVent) + Math.max(0, phiSolar) + Math.max(0, phiInt);
+    }
+    function fmtW(x){ if(!isFinite(x)) return '—'; if(x<1000) return x.toFixed(0)+' W'; return (x/1000).toFixed(2)+' kW'; }
+
+    const kpiHeat = $('#kpiHeat'), kpiCool = $('#kpiCool'), kpiRooms = $('#kpiRooms'), deltaTHeat = $('#deltaTHeat'), resultsWrap = $('#resultsWrap');
+
+    function update(){
+      const dTH = heatDeltaT(); deltaTHeat.textContent = dTH.toFixed(1);
+      let sumHeat = 0, sumCool = 0; resultsWrap.innerHTML='';
+      state.rooms.forEach((room, i) => {
+        const tIn = Number(room.tInHeat ?? $('#tInHeat').value);
+        const dT = Number(tIn - JSON.parse($('#city').value).t_out_heat);
+        const phiTr = phiTransmission(room, dT);
+        const phiVh = phiVentilation(room, dT, 'heat');
+        const phiHeat = Math.max(0, phiTr + phiVh);
+        const phiCool = phiCoolingSensible(room);
+        sumHeat += phiHeat; sumCool += phiCool;
+
+        const nodes = roomsWrap.children[i];
+        nodes.querySelector('[data-phiheat]').textContent = (phiHeat).toFixed(0)+' W';
+        nodes.querySelector('[data-phicool]').textContent = (phiCool).toFixed(0)+' W';
+        nodes.querySelector('[data-vol]').textContent = roomVolume(room).toFixed(1);
+
+        const tbl = document.createElement('table');
+        tbl.innerHTML = `
+          <thead><tr><th>Raum</th><th>Φ_trans [W]</th><th>Φ_lüft [W]</th><th>Φ_heiz [W]</th><th>Φ_kühl sens. [W]</th></tr></thead>
+          <tbody><tr>
+            <td>${room.name || 'Raum '+(i+1)}</td>
+            <td>${phiTr.toFixed(0)}</td>
+            <td>${phiVh.toFixed(0)}</td>
+            <td>${phiHeat.toFixed(0)}</td>
+            <td>${phiCool.toFixed(0)}</td>
+          </tr></tbody>`;
+        resultsWrap.appendChild(tbl);
+      });
+      kpiHeat.textContent = fmtW(sumHeat);
+      kpiCool.textContent = fmtW(sumCool);
+      kpiRooms.textContent = String(state.rooms.length);
+    }
+
+    const debouncer = { t:null }; function debounceUpdate(){ clearTimeout(debouncer.t); debouncer.t = setTimeout(update, 120); }
+    ['projectName','city','tInHeat','tInCool','nHeat','nCool','hRoom'].forEach(id => document.getElementById(id).addEventListener('input', debounceUpdate));
+    addRoom(); addRoom();
+
+    // Persistenz
+    function save(){ const payload = { project: $('#projectName').value, city: JSON.parse($('#city').value), tInHeat: $('#tInHeat').value, tInCool: $('#tInCool').value, nHeat: $('#nHeat').value, nCool: $('#nCool').value, hRoom: $('#hRoom').value, rooms: state.rooms }; localStorage.setItem('hk_last_project', JSON.stringify(payload)); }
+    function load(){ const s = localStorage.getItem('hk_last_project'); if(!s) return; try{ const p = JSON.parse(s); $('#projectName').value=p.project??''; const idx=CLIMATE.findIndex(c=>c.city===(p.city?.city)); if(idx>=0) citySel.selectedIndex=idx; ['tInHeat','tInCool','nHeat','nCool','hRoom'].forEach(id=>{const el=document.getElementById(id); if(p[id]!==undefined) el.value=p[id];}); state.rooms=[]; roomsWrap.innerHTML=''; (p.rooms||[]).forEach(r=>addRoom(r)); update(); }catch(e){ console.warn('Load failed',e); } }
+    window.addEventListener('beforeunload', save); window.addEventListener('load', load);
+  </script>
+</body>
+</html>
