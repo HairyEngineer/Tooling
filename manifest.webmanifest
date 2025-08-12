@@ -1,0 +1,9 @@
+{
+  "name": "Heiz- & Kühllast Rechner",
+  "short_name": "HK‑Rechner",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b0f15",
+  "theme_color": "#0b0f15",
+  "description": "Vereinfachter, erweiterbarer DIN-orientierter Prototyp zur Heiz- und Kühllastabschätzung."
+}
